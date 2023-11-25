@@ -1,0 +1,21 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['Alertname']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 24h
+  receiver: 'email'
+
+receivers:
+- name: 'email'
+  email_configs:
+  - to: 'potato@potato.com'
+    from: 'potato@potato.com'
+    smarthost: smtp.mail.potato.com:587
+    auth_username: 'potato@potato.com'
+    auth_identity: 'potato@potato.com'
+    auth_password: 'potatoauthtoken'
+    require_tls: yes
+    send_resolved: true
