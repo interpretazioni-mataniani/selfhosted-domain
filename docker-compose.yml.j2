@@ -1,0 +1,98 @@
+services:
+
+  traefik:
+    image: "traefik:latest"
+    container_name: "traefik"
+    privileged: true
+    command:
+      - "--log.level=INFO"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web_secure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=web_secure"
+      - "--certificatesresolvers.certresolver.acme.dnschallenge=true"
+      - "--certificatesresolvers.certresolver.acme.dnschallenge.provider=cloudflare"
+#      - "--certificatesresolvers.certresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+      - "--certificatesresolvers.certresolver.acme.email={{ CF_API_EMAIL }}"
+      - "--certificatesresolvers.certresolver.acme.storage=/certs/acme.json"
+      - "--certificatesresolvers.certresolver.acme.dnschallenge.resolvers=1.1.1.1:53"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8282:8080"
+    environment:
+      - CF_API_KEY={{ CF_API_KEY }}
+      - CF_API_EMAIL={{ CF_API_EMAIL }}
+      - CF_DNS_API_TOKEN={{ CF_API_TOKEN }}
+    volumes:
+      - "./certs:/certs"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      - network
+      - ddclient_network
+      - prometheus_network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.domain.entrypoints=web_secure"
+      - "traefik.http.routers.domain.rule=Host(`{{ DOMAIN }}`)"
+      - "traefik.http.routers.domain.tls.certresolver=certresolver"
+      - "traefik.http.routers.domain.middlewares=domain"
+      - 'traefik.http.middlewares.domain.redirectregex.regex=^https://{{ DOMAIN }}/(.*)'
+      - 'traefik.http.middlewares.domain.redirectregex.replacement=https://dash.{{ DOMAIN }}/$${1}'
+      - "traefik.http.middlewares.domain.redirectregex.permanent=true"
+      - "traefik.tls.stores.default.defaultgeneratedcert.resolver=certresolver"
+      - "traefik.tls.stores.default.defaultgeneratedcert.domain.main={{ DOMAIN }}"
+
+  authelia:
+    image: authelia/authelia:latest
+    container_name: authelia
+    environment:
+      - TZ=Asia/Jerusalem
+    volumes:
+      - ./authelia:/config
+    restart: unless-stopped
+    secrets:
+      - hmac
+      - private_key
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.authelia.rule=Host(`auth.{{ DOMAIN }}`)'
+      - 'traefik.http.routers.authelia.entrypoints=web_secure'
+      - "traefik.http.routers.authelia.service=authelia-traefik@docker"
+      - 'traefik.http.routers.authelia.tls=true'
+      - "traefik.http.routers.authelia.tls.certresolver=certresolver"
+      - 'traefik.http.middlewares.authelia.forwardauth.address=http://authelia:9091/api/verify?rd=https://auth.{{ DOMAIN }}/'
+      - 'traefik.http.middlewares.authelia.forwardauth.trustForwardHeader=true'
+      - 'traefik.http.middlewares.authelia.forwardauth.authResponseHeaders=Remote-User, Remote-Groups, Remote-Name, Remote-Email'
+      - 'traefik.http.middlewares.authelia-basic.forwardauth.address=http://authelia:9091/api/verify?auth=basic'
+      - 'traefik.http.middlewares.authelia-basic.forwardauth.trustForwardHeader=true'
+      - 'traefik.http.middlewares.authelia-basic.forwardauth.authResponseHeaders=Remote-User, Remote-Groups, Remote-Name, Remote-Email'
+    networks:
+      - internal
+  redis:
+    image: redis:alpine
+    container_name: authelia_redis
+    restart: unless-stopped
+    volumes:
+      - ./redis:/data
+    networks:
+      - internal
+
+secrets:
+  hmac:
+    file: ./authelia/secrets/hmac
+  private_key:
+    file: ./authelia/secrets/issuer_private_key
+
+networks:
+  network:
+    driver: bridge
+  internal:
+    driver: bridge
+  ddclient_network:
+    external: true
+  prometheus_network:
+    external: true

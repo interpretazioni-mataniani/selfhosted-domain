@@ -1,0 +1,7 @@
+users:
+  admin:
+    password: some-argon2-encrypted-pass
+    displayname: Potato potato
+    email: potato@potato.com
+    groups:
+    - potato

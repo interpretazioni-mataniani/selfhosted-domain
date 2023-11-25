@@ -1,0 +1,20 @@
+- name: Make sure Container directory exists
+  ansible.builtin.file:
+    path: "{{ container_dir }}"
+    state: directory
+
+- ansible.builtin.git:
+    repo: https://git.server.address/docker-repo.git
+    dest: "{{ container_dir }}/{{ item }}"
+    version: "{{ item }}-cv"
+
+- ansible.builtin.command: curl -o docker-compose.yml.j2 "https://your-git-user:{{ ANSIBLE_TOKEN }}@git.server.address/docker-repo/raw/branch/{{ item }}-cv/docker-compose.yml.j2"
+  delegate_to: localhost
+
+- ansible.builtin.template:
+    src: "docker-compose.yml.j2"
+    dest: "{{ container_dir }}/{{ item }}/docker-compose.yml"
+
+- community.docker.docker_compose:
+    project_src: "{{ container_dir }}/{{ item }}"
+  tags: compose

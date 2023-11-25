@@ -1,0 +1,16 @@
+- hosts: your-host
+  gather_facts: yes
+  become: yes
+  vars_files:
+    - ./vars.yaml
+
+  tasks:
+    - name: Install Docker CE ## From: https://gist.github.com/rbq/886587980894e98b23d0eee2a1d84933, https://docs.docker.com/engine/install/
+      include_tasks: setup-docker.yaml
+
+    - name: Set up containers
+      include_tasks: setup-containers.yaml
+      with_items: 
+        - ddclient
+        - prometheus
+        - traefik
